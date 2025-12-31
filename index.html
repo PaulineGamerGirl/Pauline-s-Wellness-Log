@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>My Snatched Diary</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              // Premium Palette - Refined
+              iceBlue: '#F0F9FF',      // Sky 50
+              frostBlue: '#E0F2FE',    // Sky 100
+              accentBlue: '#0EA5E9',   // Sky 500 (Restored to deeper blue)
+              
+              softPink: '#FFF1F2',     // Rose 50
+              accentPink: '#FB7185',   // Rose 400 (Solid Pink)
+              
+              slateText: '#334155',
+              mutedText: '#94A3B8',
+              surface: '#FFFFFF',
+              surfaceAlt: '#FAFAFA',
+            },
+            fontFamily: {
+              serif: ['"Playfair Display"', 'serif'],
+              sans: ['"Quicksand"', 'sans-serif'],
+            },
+            boxShadow: {
+              'subtle': '0 1px 2px 0 rgba(0, 0, 0, 0.05)',
+              'float': '0 10px 15px -3px rgba(14, 165, 233, 0.1), 0 4px 6px -2px rgba(14, 165, 233, 0.05)', // Blue-ish float
+              'glass': '0 8px 32px 0 rgba(31, 38, 135, 0.05)',
+            }
+          }
+        }
+      }
+    </script>
+    <style>
+      body {
+        font-family: 'Quicksand', sans-serif;
+        background-color: #FFFFFF;
+        color: #334155;
+      }
+      /* Hide scrollbar for premium feel */
+      .no-scrollbar::-webkit-scrollbar {
+        display: none;
+      }
+      .no-scrollbar {
+        -ms-overflow-style: none;
+        scrollbar-width: none;
+      }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+    "react/": "https://esm.sh/react@^19.2.3/",
+    "react": "https://esm.sh/react@^19.2.3",
+    "@google/genai": "https://esm.sh/@google/genai@^1.34.0"
+  }
+}
+</script>
+</head>
+  <body class="bg-white min-h-screen text-slateText antialiased overflow-hidden selection:bg-frostBlue selection:text-accentBlue">
+    <div id="root" class="h-full w-full relative"></div>
+  </body>
+</html>
