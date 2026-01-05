@@ -273,7 +273,10 @@ const MealsView: React.FC = () => {
     const remainingCals = goals.calories - totalCalories;
     const pantryList = pantry.map(f => f.name).join(", ");
     try {
-        const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+        const apiKey = localStorage.getItem('snatched_api_key') || process.env.API_KEY || "";
+        if (!apiKey) throw new Error("No API Key");
+
+        const ai = new GoogleGenAI({ apiKey });
         const response = await ai.models.generateContent({
             model: 'gemini-3-pro-preview',
             contents: [{ role: 'user', parts: [{ text: `I have ${remainingCals} calories left today (Goal: ${goals.calories}). Pantry: [${pantryList}]. Generate TWO meal options. Return JSON: { "standard": { "name": "", "calories": 0, "protein": 0, "description": "", "ingredients": [] }, "twist": { "name": "", "calories": 0, "protein": 0, "description": "", "ingredients": [] } }` }]}]
@@ -282,14 +285,20 @@ const MealsView: React.FC = () => {
         const data = JSON.parse(cleanJson);
         setStandardSuggestion(data.standard); setTwistSuggestion(data.twist);
         setShowOracleModal(true); // Open modal after generation
-    } catch (e) { console.error(e); } finally { setIsGeneratingSuggestion(false); }
+    } catch (e) { 
+        console.error(e); 
+        setMealAnalysis("Please check your API Key settings.");
+    } finally { setIsGeneratingSuggestion(false); }
   };
 
   const regenerateTwist = async () => {
       setIsRegeneratingTwist(true);
       const remainingCals = goals.calories - totalCalories;
       try {
-        const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+        const apiKey = localStorage.getItem('snatched_api_key') || process.env.API_KEY || "";
+        if (!apiKey) throw new Error("No API Key");
+
+        const ai = new GoogleGenAI({ apiKey });
         const response = await ai.models.generateContent({
             model: 'gemini-3-pro-preview',
             contents: [{ role: 'user', parts: [{ text: `Give me a NEW twist meal option < ${remainingCals} cals. Return JSON: { "name": "", "calories": 0, "protein": 0, "description": "", "ingredients": [] }` }]}]
@@ -304,24 +313,34 @@ const MealsView: React.FC = () => {
     if (!file) return;
     setIsAnalyzing(true); setReviewModalOpen(true); setReviewData(null);
     try {
+      const apiKey = localStorage.getItem('snatched_api_key') || process.env.API_KEY || "";
+      if (!apiKey) throw new Error("No API Key");
+
       const base64Data = await new Promise<string>((resolve) => {
         const reader = new FileReader();
         reader.onloadend = () => { resolve((reader.result as string).split(',')[1]); };
         reader.readAsDataURL(file);
       });
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const ai = new GoogleGenAI({ apiKey });
       const response = await ai.models.generateContent({
         model: 'gemini-3-pro-preview',
         contents: [{ role: 'user', parts: [{ inlineData: { mimeType: file.type, data: base64Data } }, { text: 'Identify this food. Return JSON: { "name": "string", "calories": number, "protein": number, "carbs": number, "fats": number, "fiber": number, "summary": "string", "dietary_feedback": "string" }' }]}]
       });
       setReviewData(JSON.parse(response.text!.replace(/```json/g, '').replace(/```/g, '').trim()));
-    } catch (error) { setReviewModalOpen(false); } finally { setIsAnalyzing(false); }
+    } catch (error) { 
+        console.error(error);
+        setReviewModalOpen(false); 
+        setMealAnalysis("API Key Missing or Invalid");
+    } finally { setIsAnalyzing(false); }
   };
 
   const handleRefineAnalysis = async () => {
       setIsRefining(true);
       try {
-          const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+          const apiKey = localStorage.getItem('snatched_api_key') || process.env.API_KEY || "";
+          if (!apiKey) throw new Error("No API Key");
+
+          const ai = new GoogleGenAI({ apiKey });
           const response = await ai.models.generateContent({
               model: 'gemini-3-pro-preview',
               contents: [{ role: 'user', parts: [{ text: `Original: ${JSON.stringify(reviewData)}. Correction: "${correctionInput}". Update JSON.` }]}]

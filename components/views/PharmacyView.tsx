@@ -289,7 +289,10 @@ const PharmacyView: React.FC = () => {
         setIsAnalyzing(true);
         setShowSurgeryInputModal(false);
         try {
-            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
+            const apiKey = localStorage.getItem('snatched_api_key') || process.env.API_KEY || "";
+            if (!apiKey) throw new Error("No API Key");
+
+            const ai = new GoogleGenAI({ apiKey });
             const medList = meds.map(m => `- ${m.name} (${m.dose})`).join('\n');
             const prompt = `
                 I am a transwoman patient undergoing surgery soon (general anesthesia). 
@@ -319,7 +322,7 @@ const PharmacyView: React.FC = () => {
             setShowSurgeryModal(true); 
         } catch (error) {
             console.error("AI Error", error);
-            setAiNote("Could not connect to AI. Please manually review your medications.");
+            setAiNote("Could not connect to AI. Please check your API Key settings.");
             setSurgeryMode(true);
             setShowSurgeryModal(true);
         } finally {

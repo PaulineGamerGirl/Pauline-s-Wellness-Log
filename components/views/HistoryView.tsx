@@ -316,7 +316,10 @@ const HistoryView: React.FC = () => {
       setPredictionData([]);
       
       try {
-          const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+          const apiKey = localStorage.getItem('snatched_api_key') || process.env.API_KEY || "";
+          if (!apiKey) throw new Error("No API Key");
+
+          const ai = new GoogleGenAI({ apiKey });
           
           // Prepare context: Last 30 days of weight
           const recentHistory = weightHistory.slice(-10); // Take last 10 entries for brevity
@@ -355,7 +358,7 @@ const HistoryView: React.FC = () => {
 
       } catch (error) {
           console.error("Prediction failed", error);
-          setPredictionSummary("The stars are cloudy today. Log more data to see the future clearly.");
+          setPredictionSummary("Could not connect to the future. Check your API Key settings.");
       } finally {
           setIsPredicting(false);
       }

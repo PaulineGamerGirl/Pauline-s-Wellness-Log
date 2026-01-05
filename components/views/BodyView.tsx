@@ -234,7 +234,14 @@ const BodyView: React.FC = () => {
       setIsGenerating(true);
 
       try {
-          const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+          const apiKey = localStorage.getItem('snatched_api_key') || process.env.API_KEY || "";
+          if (!apiKey) {
+              setChatHistory(prev => [...prev, { role: 'ai', text: "Please set your API Key in Settings first!" }]);
+              setIsGenerating(false);
+              return;
+          }
+
+          const ai = new GoogleGenAI({ apiKey });
           
           // Context building
           const currentContext = JSON.stringify({
@@ -292,7 +299,7 @@ const BodyView: React.FC = () => {
 
       } catch (error) {
           console.error(error);
-          setChatHistory(prev => [...prev, { role: 'ai', text: "Oops, my connection to the spirit realm broke. Try again?" }]);
+          setChatHistory(prev => [...prev, { role: 'ai', text: "Oops, my connection to the spirit realm broke. Check your API Key?" }]);
       } finally {
           setIsGenerating(false);
       }

@@ -45,6 +45,52 @@ const AiResponseModal = ({ query, response, onClose, isLoading }: { query: strin
     </div>
 );
 
+// --- SETTINGS MODAL ---
+const SettingsModal = ({ onClose }: { onClose: () => void }) => {
+    const [key, setKey] = useState(localStorage.getItem('snatched_api_key') || '');
+    const [saved, setSaved] = useState(false);
+
+    const handleSave = () => {
+        localStorage.setItem('snatched_api_key', key);
+        setSaved(true);
+        setTimeout(() => {
+            setSaved(false);
+            onClose();
+            window.location.reload(); // Reload to ensure all components pick up the new key if they cached it
+        }, 1000);
+    };
+
+    return (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 backdrop-blur-md p-4 animate-fade-in">
+            <div className="bg-white rounded-[24px] shadow-2xl w-full max-w-md p-6 animate-modal-in">
+                <div className="flex justify-between items-center mb-6">
+                    <h3 className="font-serif font-bold text-xl text-slate-800">Settings</h3>
+                    <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><Icons.Plus className="w-6 h-6 rotate-45" /></button>
+                </div>
+                <div className="space-y-4">
+                    <div>
+                        <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 block">Google Gemini API Key</label>
+                        <input 
+                            type="password" 
+                            placeholder="AIzaSy..." 
+                            value={key}
+                            onChange={(e) => setKey(e.target.value)}
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-accentPink font-mono"
+                        />
+                        <p className="text-[10px] text-slate-400 mt-2">Required for Oracle, Meal Analysis, and Workout Design. Stored locally on your device.</p>
+                    </div>
+                    <button 
+                        onClick={handleSave} 
+                        className={`w-full py-3 rounded-xl font-bold text-sm text-white transition-all ${saved ? 'bg-emerald-500' : 'bg-slate-900 hover:bg-slate-800'}`}
+                    >
+                        {saved ? 'Saved!' : 'Save Configuration'}
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 interface NotificationItem {
     id: string;
     type: 'missed' | 'future';
@@ -65,6 +111,9 @@ const Header: React.FC = () => {
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [showDropdown, setShowDropdown] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Settings State
+  const [showSettings, setShowSettings] = useState(false);
 
   useEffect(() => {
     // Clock Timer
@@ -191,7 +240,16 @@ const Header: React.FC = () => {
           setAiResponse(""); // Clear previous
           
           try {
-              const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+              // Retrieve Key from LocalStorage or Env
+              const apiKey = localStorage.getItem('snatched_api_key') || process.env.API_KEY || "";
+              
+              if (!apiKey) {
+                  setAiResponse("I need a key to the spirit realm. Please add your API Key in Settings.");
+                  setIsAiLoading(false);
+                  return;
+              }
+
+              const ai = new GoogleGenAI({ apiKey });
               const model = 'gemini-3-pro-preview';
               
               const prompt = `
@@ -212,7 +270,7 @@ const Header: React.FC = () => {
               setAiResponse(result.text || "The stars are silent on this matter. Please try again.");
           } catch (error) {
               console.error("AI Error:", error);
-              setAiResponse("My connection to the spirit realm was interrupted. Please try again later.");
+              setAiResponse("My connection to the spirit realm was interrupted. Please check your API Key in Settings.");
           } finally {
               setIsAiLoading(false);
           }
@@ -261,6 +319,13 @@ const Header: React.FC = () => {
                     </div>
                 </div>
             )}
+
+            <button 
+                onClick={() => setShowSettings(true)}
+                className="w-10 h-10 rounded-full border border-slate-100 flex items-center justify-center text-slate-500 hover:text-accentBlue hover:shadow-sm bg-white transition-all"
+            >
+                <Icons.Settings className="w-5 h-5" />
+            </button>
 
             <button 
                 onClick={() => setShowDropdown(!showDropdown)}
@@ -354,6 +419,10 @@ const Header: React.FC = () => {
                 isLoading={isAiLoading} 
                 onClose={() => setShowAiModal(false)} 
             />
+        )}
+        
+        {showSettings && (
+            <SettingsModal onClose={() => setShowSettings(false)} />
         )}
     </>
   );
