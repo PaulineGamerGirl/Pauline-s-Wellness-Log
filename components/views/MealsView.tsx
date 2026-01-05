@@ -157,6 +157,7 @@ const MealsView: React.FC = () => {
   const [correctionInput, setCorrectionInput] = useState("");
   const [isRefining, setIsRefining] = useState(false);
   const [mealAnalysis, setMealAnalysis] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null); // NEW: Error state
   
   // Suggestion States
   const [standardSuggestion, setStandardSuggestion] = useState<MealSuggestion | null>(null);
@@ -311,10 +312,14 @@ const MealsView: React.FC = () => {
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
-    setIsAnalyzing(true); setReviewModalOpen(true); setReviewData(null);
+    setIsAnalyzing(true); 
+    setReviewModalOpen(true); 
+    setReviewData(null);
+    setError(null); // Reset error
+
     try {
       const apiKey = localStorage.getItem('snatched_api_key') || process.env.API_KEY || "";
-      if (!apiKey) throw new Error("No API Key");
+      if (!apiKey) throw new Error("API Key Missing. Check Settings.");
 
       const base64Data = await new Promise<string>((resolve) => {
         const reader = new FileReader();
@@ -327,10 +332,10 @@ const MealsView: React.FC = () => {
         contents: [{ role: 'user', parts: [{ inlineData: { mimeType: file.type, data: base64Data } }, { text: 'Identify this food. Return JSON: { "name": "string", "calories": number, "protein": number, "carbs": number, "fats": number, "fiber": number, "summary": "string", "dietary_feedback": "string" }' }]}]
       });
       setReviewData(JSON.parse(response.text!.replace(/```json/g, '').replace(/```/g, '').trim()));
-    } catch (error) { 
+    } catch (error: any) { 
         console.error(error);
-        setReviewModalOpen(false); 
-        setMealAnalysis("API Key Missing or Invalid");
+        // FIX: Do NOT close modal. Show error instead.
+        setError(error.message || "Connection to Oracle failed.");
     } finally { setIsAnalyzing(false); }
   };
 
@@ -489,6 +494,16 @@ const MealsView: React.FC = () => {
                     <div className="p-6 overflow-y-auto custom-scrollbar">
                         {isAnalyzing && !reviewData ? (
                             <div className="flex flex-col items-center justify-center py-12"><Icons.Sparkles className="w-12 h-12 text-accentPink animate-spin mb-4" /><p className="text-slate-500 font-medium animate-pulse">Consulting the spirits...</p></div>
+                        ) : error ? ( 
+                            // Error State UI
+                            <div className="flex flex-col items-center justify-center py-8 text-center animate-fade-in">
+                                <div className="w-12 h-12 bg-red-50 rounded-full flex items-center justify-center text-red-400 mb-3">
+                                    <XMarkIcon className="w-6 h-6" />
+                                </div>
+                                <p className="text-slate-700 font-bold mb-1">Analysis Failed</p>
+                                <p className="text-slate-400 text-xs mb-4 max-w-[200px]">{error}</p>
+                                <button onClick={() => setReviewModalOpen(false)} className="text-accentPink text-xs font-bold hover:underline">Dismiss</button>
+                            </div>
                         ) : reviewData ? (
                             <div className="space-y-6 animate-slide-up">
                                 <div className="bg-pink-50/50 p-4 rounded-xl border border-pink-100"><p className="text-slate-700 text-sm leading-relaxed">"{reviewData.summary}"</p></div>
@@ -505,7 +520,7 @@ const MealsView: React.FC = () => {
                         ) : null}
                     </div>
                     <div className="p-6 border-t border-slate-50 bg-slate-50/50">
-                        <button onClick={handleConfirmAnalysis} disabled={!reviewData || isRefining} className="w-full py-3.5 bg-slate-900 text-white rounded-xl font-bold shadow-lg shadow-slate-300 hover:bg-slate-800 transition-all active:scale-[0.98] disabled:opacity-50">Stage Meal</button>
+                        <button onClick={handleConfirmAnalysis} disabled={!reviewData || isRefining || !!error} className="w-full py-3.5 bg-slate-900 text-white rounded-xl font-bold shadow-lg shadow-slate-300 hover:bg-slate-800 transition-all active:scale-[0.98] disabled:opacity-50">Stage Meal</button>
                     </div>
                 </div>
             </div>

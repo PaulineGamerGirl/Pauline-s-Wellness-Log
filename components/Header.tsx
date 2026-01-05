@@ -74,7 +74,7 @@ const SettingsModal = ({ onClose }: { onClose: () => void }) => {
                             type="password" 
                             placeholder="AIzaSy..." 
                             value={key}
-                            onChange={(e) => setKey(e.target.value)}
+                            onChange={(e) => setKey(e.target.value.trim())}
                             className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-accentPink font-mono"
                         />
                         <p className="text-[10px] text-slate-400 mt-2">Required for Oracle, Meal Analysis, and Workout Design. Stored locally on your device.</p>
