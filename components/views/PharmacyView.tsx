@@ -71,7 +71,7 @@ const INITIAL_SKINCARE: SkincareItem[] = [
 const WEEK_DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
 // FALLBACK MODELS LIST
-const MODELS = ['gemini-3-pro-preview', 'gemini-2.0-flash', 'gemini-1.5-flash'];
+const MODELS = ['gemini-3-pro-preview', 'gemini-3-flash-preview', 'gemini-2.5-flash'];
 
 const PharmacyView: React.FC = () => {
     // --- STATE ---

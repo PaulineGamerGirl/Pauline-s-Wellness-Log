@@ -83,7 +83,7 @@ const STORAGE_KEYS = {
 };
 
 // FALLBACK MODELS LIST
-const MODELS = ['gemini-3-pro-preview', 'gemini-2.0-flash', 'gemini-1.5-flash'];
+const MODELS = ['gemini-3-pro-preview', 'gemini-3-flash-preview', 'gemini-2.5-flash'];
 
 const MEAL_TYPES = ['Breakfast', 'Lunch', 'Dinner', 'Snack'];
 
@@ -756,4 +756,3 @@ const MealsView: React.FC = () => {
 };
 
 export default MealsView;
-    

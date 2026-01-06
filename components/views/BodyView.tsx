@@ -88,7 +88,7 @@ const WEEK_DAYS = [
 ];
 
 // FALLBACK MODELS LIST
-const MODELS = ['gemini-3-pro-preview', 'gemini-2.0-flash', 'gemini-1.5-flash'];
+const MODELS = ['gemini-3-pro-preview', 'gemini-3-flash-preview', 'gemini-2.5-flash'];
 
 const BodyView: React.FC = () => {
   // --- STATE ---
@@ -663,7 +663,7 @@ const BodyView: React.FC = () => {
                                <button 
                                 onClick={(e) => { e.stopPropagation(); deleteWorkout(task.id); }}
                                 className="p-2 text-slate-300 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all hover:bg-red-50 rounded-lg hover:scale-110"
-                               >
+                                >
                                    <TrashIcon className="w-4 h-4" />
                                </button>
                            </div>

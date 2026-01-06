@@ -5,7 +5,7 @@ import { GoogleGenAI } from "@google/genai";
 import { Medication, SkincareItem } from '../types';
 
 // FALLBACK MODELS LIST
-const MODELS = ['gemini-3-pro-preview', 'gemini-2.0-flash', 'gemini-1.5-flash'];
+const MODELS = ['gemini-3-pro-preview', 'gemini-3-flash-preview', 'gemini-2.5-flash'];
 
 // --- AI MODAL COMPONENT ---
 const AiResponseModal = ({ query, response, onClose, isLoading }: { query: string, response: string, onClose: () => void, isLoading: boolean }) => (
