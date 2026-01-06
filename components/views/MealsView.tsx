@@ -82,6 +82,9 @@ const STORAGE_KEYS = {
     WEIGHT_HISTORY: 'snatched_weight_history'
 };
 
+// FALLBACK MODELS LIST
+const MODELS = ['gemini-3-pro-preview', 'gemini-2.0-flash', 'gemini-1.5-flash'];
+
 const MEAL_TYPES = ['Breakfast', 'Lunch', 'Dinner', 'Snack'];
 
 const INITIAL_FOODS: Food[] = [
@@ -278,17 +281,34 @@ const MealsView: React.FC = () => {
         if (!apiKey) throw new Error("No API Key");
 
         const ai = new GoogleGenAI({ apiKey });
-        const response = await ai.models.generateContent({
-            model: 'gemini-3-pro-preview',
-            contents: [{ role: 'user', parts: [{ text: `I have ${remainingCals} calories left today (Goal: ${goals.calories}). Pantry: [${pantryList}]. Generate TWO meal options. Return JSON: { "standard": { "name": "", "calories": 0, "protein": 0, "description": "", "ingredients": [] }, "twist": { "name": "", "calories": 0, "protein": 0, "description": "", "ingredients": [] } }` }]}]
-        });
-        const cleanJson = response.text!.replace(/```json/g, '').replace(/```/g, '').trim();
+        
+        let response = null;
+        let lastError = null;
+
+        // RETRY LOGIC for Models
+        for (const modelName of MODELS) {
+            try {
+                response = await ai.models.generateContent({
+                    model: modelName,
+                    contents: [{ role: 'user', parts: [{ text: `I have ${remainingCals} calories left today (Goal: ${goals.calories}). Pantry: [${pantryList}]. Generate TWO meal options. Return JSON: { "standard": { "name": "", "calories": 0, "protein": 0, "description": "", "ingredients": [] }, "twist": { "name": "", "calories": 0, "protein": 0, "description": "", "ingredients": [] } }` }]}]
+                });
+                if(response) break; // Success
+            } catch (err) {
+                console.warn(`Model ${modelName} failed`, err);
+                lastError = err;
+                continue; // Try next model
+            }
+        }
+        
+        if (!response && lastError) throw lastError;
+
+        const cleanJson = response!.text!.replace(/```json/g, '').replace(/```/g, '').trim();
         const data = JSON.parse(cleanJson);
         setStandardSuggestion(data.standard); setTwistSuggestion(data.twist);
-        setShowOracleModal(true); // Open modal after generation
+        setShowOracleModal(true); 
     } catch (e) { 
         console.error(e); 
-        setMealAnalysis("Please check your API Key settings.");
+        setMealAnalysis("The Oracle is resting (Quota Exceeded). Try again in a moment.");
     } finally { setIsGeneratingSuggestion(false); }
   };
 
@@ -300,11 +320,27 @@ const MealsView: React.FC = () => {
         if (!apiKey) throw new Error("No API Key");
 
         const ai = new GoogleGenAI({ apiKey });
-        const response = await ai.models.generateContent({
-            model: 'gemini-3-pro-preview',
-            contents: [{ role: 'user', parts: [{ text: `Give me a NEW twist meal option < ${remainingCals} cals. Return JSON: { "name": "", "calories": 0, "protein": 0, "description": "", "ingredients": [] }` }]}]
-        });
-        const cleanJson = response.text!.replace(/```json/g, '').replace(/```/g, '').trim();
+        
+        let response = null;
+        let lastError = null;
+
+        // RETRY LOGIC
+        for (const modelName of MODELS) {
+             try {
+                 response = await ai.models.generateContent({
+                    model: modelName,
+                    contents: [{ role: 'user', parts: [{ text: `Give me a NEW twist meal option < ${remainingCals} cals. Return JSON: { "name": "", "calories": 0, "protein": 0, "description": "", "ingredients": [] }` }]}]
+                });
+                if(response) break;
+             } catch (err) {
+                 lastError = err;
+                 continue;
+             }
+        }
+
+        if (!response && lastError) throw lastError;
+
+        const cleanJson = response!.text!.replace(/```json/g, '').replace(/```/g, '').trim();
         setTwistSuggestion(JSON.parse(cleanJson));
       } catch(e) { console.error(e); } finally { setIsRegeneratingTwist(false); }
   };
@@ -315,7 +351,7 @@ const MealsView: React.FC = () => {
     setIsAnalyzing(true); 
     setReviewModalOpen(true); 
     setReviewData(null);
-    setError(null); // Reset error
+    setError(null); 
 
     try {
       const apiKey = localStorage.getItem('snatched_api_key') || process.env.API_KEY || "";
@@ -327,15 +363,31 @@ const MealsView: React.FC = () => {
         reader.readAsDataURL(file);
       });
       const ai = new GoogleGenAI({ apiKey });
-      const response = await ai.models.generateContent({
-        model: 'gemini-3-pro-preview',
-        contents: [{ role: 'user', parts: [{ inlineData: { mimeType: file.type, data: base64Data } }, { text: 'Identify this food. Return JSON: { "name": "string", "calories": number, "protein": number, "carbs": number, "fats": number, "fiber": number, "summary": "string", "dietary_feedback": "string" }' }]}]
-      });
-      setReviewData(JSON.parse(response.text!.replace(/```json/g, '').replace(/```/g, '').trim()));
+      
+      let response = null;
+      let lastError = null;
+
+      // RETRY LOGIC
+      for (const modelName of MODELS) {
+          try {
+              response = await ai.models.generateContent({
+                model: modelName,
+                contents: [{ role: 'user', parts: [{ inlineData: { mimeType: file.type, data: base64Data } }, { text: 'Identify this food. Return JSON: { "name": "string", "calories": number, "protein": number, "carbs": number, "fats": number, "fiber": number, "summary": "string", "dietary_feedback": "string" }' }]}]
+              });
+              if (response) break;
+          } catch (err) {
+              console.warn(`Model ${modelName} failed`, err);
+              lastError = err;
+              continue;
+          }
+      }
+
+      if (!response && lastError) throw lastError;
+
+      setReviewData(JSON.parse(response!.text!.replace(/```json/g, '').replace(/```/g, '').trim()));
     } catch (error: any) { 
         console.error(error);
-        // FIX: Do NOT close modal. Show error instead.
-        setError(error.message || "Connection to Oracle failed.");
+        setError("Analysis Failed: " + (error.message || "Quota exceeded. Try again later."));
     } finally { setIsAnalyzing(false); }
   };
 
@@ -346,11 +398,26 @@ const MealsView: React.FC = () => {
           if (!apiKey) throw new Error("No API Key");
 
           const ai = new GoogleGenAI({ apiKey });
-          const response = await ai.models.generateContent({
-              model: 'gemini-3-pro-preview',
-              contents: [{ role: 'user', parts: [{ text: `Original: ${JSON.stringify(reviewData)}. Correction: "${correctionInput}". Update JSON.` }]}]
-          });
-          setReviewData(JSON.parse(response.text!.replace(/```json/g, '').replace(/```/g, '').trim()));
+          
+          let response = null;
+          let lastError = null;
+
+           // RETRY LOGIC
+          for (const modelName of MODELS) {
+              try {
+                  response = await ai.models.generateContent({
+                      model: modelName,
+                      contents: [{ role: 'user', parts: [{ text: `Original: ${JSON.stringify(reviewData)}. Correction: "${correctionInput}". Update JSON.` }]}]
+                  });
+                  if(response) break;
+              } catch(err) {
+                  lastError = err;
+                  continue;
+              }
+          }
+          if(!response && lastError) throw lastError;
+
+          setReviewData(JSON.parse(response!.text!.replace(/```json/g, '').replace(/```/g, '').trim()));
           setCorrectionInput("");
       } catch (e) { console.error(e); } finally { setIsRefining(false); }
   };
@@ -661,15 +728,21 @@ const MealsView: React.FC = () => {
                         {dailyLogs.length === 0 ? <p className="text-center text-sm text-slate-400 italic py-8">No meals logged yet today.</p> : (
                             <div className="space-y-3">
                                 {dailyLogs.map((log, index) => (
-                                    <div key={index} className="flex items-center justify-between p-3 rounded-xl bg-slate-50 hover:bg-white border border-transparent hover:border-slate-100 transition-all group">
+                                    <div key={index} className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100 hover:bg-white transition-all group">
                                         <div>
                                             <p className="font-bold text-slate-700 text-sm flex items-center gap-2">
-                                                {log.name} 
+                                                {log.name}
                                                 {log.mealType && <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-400 font-bold uppercase">{log.mealType}</span>}
                                             </p>
-                                            <p className="text-xs text-slate-400">{log.calories} kcal</p>
+                                            <div className="flex gap-2 text-xs text-slate-400">
+                                                <span>{log.calories} kcal</span>
+                                                <span className="text-slate-300">•</span>
+                                                <span className="text-accentBlue font-bold">{log.protein}g protein</span>
+                                            </div>
                                         </div>
-                                        <button onClick={() => deleteLogItem(index)} className="p-2 text-slate-300 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all"><TrashIcon className="w-4 h-4" /></button>
+                                        <button onClick={() => deleteLogItem(index)} className="p-2 text-slate-300 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all">
+                                            <TrashIcon className="w-4 h-4" />
+                                        </button>
                                     </div>
                                 ))}
                             </div>
@@ -677,62 +750,10 @@ const MealsView: React.FC = () => {
                     </Card>
                </div>
            </div>
-
-           {/* === BOTTOM ROW: PANTRY vs ORACLE (Aligned Heights) === */}
-           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-stretch">
-                <Card title="My Pantry" className="bg-sky-50 border border-sky-100 animate-slide-up h-full" style={{ animationDelay: '0.1s' }}>
-                    <div className="flex flex-wrap gap-2 mb-4">
-                        {pantry.map(f => (
-                            <div key={f.id} onClick={() => handlePantrySelect(f)} className={`flex items-center gap-2 px-3 py-1.5 rounded-full border transition-all cursor-pointer text-xs font-bold ${selectedFoodId === f.id ? 'bg-accentBlue text-white border-accentBlue shadow-md' : 'bg-white text-slate-600 border-slate-200 hover:border-accentBlue'}`}>
-                                <span>{f.name}</span>
-                                <button onClick={(e) => { e.stopPropagation(); handleDeletePantryItem(f.id); }} className={`hover:text-red-200 ${selectedFoodId === f.id ? 'text-white/80' : 'text-slate-300'}`}>&times;</button>
-                            </div>
-                        ))}
-                        <button onClick={() => setIsAddingFood(!isAddingFood)} className="flex items-center gap-1 px-3 py-1.5 rounded-full border border-dashed border-slate-300 text-slate-400 text-xs font-bold hover:text-accentBlue hover:border-accentBlue transition-colors"><Icons.Plus className="w-3 h-3" /> Add</button>
-                    </div>
-                    {isAddingFood && (
-                        <div className="p-3 rounded-xl bg-white border border-slate-100 animate-slide-up space-y-2 shadow-sm">
-                            <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">New Pantry Item</h4>
-                            <input type="text" placeholder="Name" value={newFoodName} onChange={(e) => setNewFoodName(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-slate-200 text-xs focus:outline-none focus:border-accentBlue" />
-                            <div className="flex gap-2">
-                                <input type="number" placeholder="Cals" value={newFoodCals} onChange={(e) => setNewFoodCals(e.target.value)} className="flex-1 px-3 py-2 rounded-lg border border-slate-200 text-xs focus:outline-none focus:border-accentBlue" />
-                                <input type="number" placeholder="Prot(g)" value={newFoodProtein} onChange={(e) => setNewFoodProtein(e.target.value)} className="flex-1 px-3 py-2 rounded-lg border border-slate-200 text-xs focus:outline-none focus:border-accentBlue" />
-                            </div>
-                            <button onClick={handleAddFoodToDb} className="w-full py-1.5 bg-accentBlue text-white rounded-lg text-xs font-bold hover:bg-sky-600 transition-colors">Save</button>
-                        </div>
-                    )}
-                </Card>
-
-                <Card className="flex-1 bg-pink-50 border border-pink-100 relative overflow-hidden flex flex-col justify-center min-h-[140px] animate-slide-up h-full" style={{ animationDelay: '0.2s' }}>
-                   <div className="relative z-10 w-full px-2">
-                       {/* Dismissible Analysis Bubble */}
-                       {mealAnalysis && (
-                           <div className="mb-4 bg-white/80 backdrop-blur-sm p-4 rounded-2xl border border-pink-100 relative shadow-sm animate-fade-in">
-                                <button onClick={() => setMealAnalysis(null)} className="absolute top-2 right-2 text-slate-300 hover:text-slate-500"><XMarkIcon className="w-4 h-4"/></button>
-                                <p className="text-sm text-slate-700 italic pr-6 leading-relaxed">"{mealAnalysis}"</p>
-                           </div>
-                       )}
-                       
-                       <button onClick={generateMealIdeas} disabled={isGeneratingSuggestion} className="w-full bg-white hover:bg-white/90 border border-slate-100 hover:border-pink-200 rounded-2xl p-5 transition-all duration-300 shadow-subtle hover:shadow-float group flex flex-row items-center justify-center gap-4">
-                            {isGeneratingSuggestion ? (
-                                <Icons.Sparkles className="w-6 h-6 text-accentPink animate-spin" />
-                            ) : (
-                                <>
-                                   <div className="w-12 h-12 rounded-full bg-pink-50 flex items-center justify-center text-2xl group-hover:scale-110 transition-transform shadow-inner border border-pink-100">✨</div>
-                                   <div className="text-left">
-                                       <span className="block font-serif font-bold text-slate-800 text-lg group-hover:text-accentPink transition-colors">What should I eat?</span>
-                                       <span className="block text-xs text-slate-400 font-medium uppercase tracking-wide">Consult the Oracle</span>
-                                   </div>
-                                </>
-                            )}
-                       </button>
-                   </div>
-                   <Icons.Sparkles className="absolute -bottom-6 -right-6 w-32 h-32 text-accentPink opacity-5 pointer-events-none rotate-12" />
-                </Card>
-           </div>
        </div>
     </div>
   );
 };
 
 export default MealsView;
+    

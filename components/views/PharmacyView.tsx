@@ -70,6 +70,9 @@ const INITIAL_SKINCARE: SkincareItem[] = [
 
 const WEEK_DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
+// FALLBACK MODELS LIST
+const MODELS = ['gemini-3-pro-preview', 'gemini-2.0-flash', 'gemini-1.5-flash'];
+
 const PharmacyView: React.FC = () => {
     // --- STATE ---
     const [meds, setMeds] = useState<Medication[]>(INITIAL_MEDS);
@@ -305,11 +308,26 @@ const PharmacyView: React.FC = () => {
                 2. "summaryNote": A short, caring doctor's note (max 30 words) explaining what was paused and why based on the specific context.
                 Example Output: { "unsafeIds": ["Estrofem", "Vitamin E"], "summaryNote": "Paused Estrogen due to clot risk for your specific procedure. Please confirm dates." }
             `;
-            const response = await ai.models.generateContent({
-                model: 'gemini-3-pro-preview',
-                contents: [{ role: 'user', parts: [{ text: prompt }] }]
-            });
-            const cleanJson = response.text!.replace(/```json/g, '').replace(/```/g, '').trim();
+            
+            let response = null;
+            let lastError = null;
+
+            // --- FALLBACK LOGIC ---
+            for (const modelName of MODELS) {
+                try {
+                    response = await ai.models.generateContent({
+                        model: modelName,
+                        contents: [{ role: 'user', parts: [{ text: prompt }] }]
+                    });
+                    if (response) break;
+                } catch (err) {
+                    console.warn(`Model ${modelName} failed in Surgery Analysis:`, err);
+                    lastError = err;
+                }
+            }
+            if (!response && lastError) throw lastError;
+
+            const cleanJson = response!.text!.replace(/```json/g, '').replace(/```/g, '').trim();
             const result = JSON.parse(cleanJson) as { unsafeIds: string[]; summaryNote: string };
             const unsafeNames = new Set(result.unsafeIds.map((n) => n.toLowerCase()));
             const updatedMeds = meds.map(m => {
@@ -322,7 +340,7 @@ const PharmacyView: React.FC = () => {
             setShowSurgeryModal(true); 
         } catch (error) {
             console.error("AI Error", error);
-            setAiNote("Could not connect to AI. Please check your API Key settings.");
+            setAiNote("Could not connect to AI (Quota Limit). Please try again later.");
             setSurgeryMode(true);
             setShowSurgeryModal(true);
         } finally {

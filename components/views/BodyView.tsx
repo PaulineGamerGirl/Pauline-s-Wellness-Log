@@ -87,6 +87,9 @@ const WEEK_DAYS = [
     { code: 'Sun', label: 'S' },
 ];
 
+// FALLBACK MODELS LIST
+const MODELS = ['gemini-3-pro-preview', 'gemini-2.0-flash', 'gemini-1.5-flash'];
+
 const BodyView: React.FC = () => {
   // --- STATE ---
   const [steps, setSteps] = useState<number>(0);
@@ -272,12 +275,26 @@ const BodyView: React.FC = () => {
             }
           `;
 
-          const response = await ai.models.generateContent({
-              model: 'gemini-3-pro-preview',
-              contents: [{ role: 'user', parts: [{ text: prompt }] }]
-          });
+          let response = null;
+          let lastError = null;
 
-          const cleanJson = response.text!.replace(/```json/g, '').replace(/```/g, '').trim();
+          // --- FALLBACK LOGIC ---
+          for (const modelName of MODELS) {
+              try {
+                  response = await ai.models.generateContent({
+                      model: modelName,
+                      contents: [{ role: 'user', parts: [{ text: prompt }] }]
+                  });
+                  if (response) break;
+              } catch (err) {
+                  console.warn(`Model ${modelName} failed in Workout Designer:`, err);
+                  lastError = err;
+              }
+          }
+
+          if (!response && lastError) throw lastError;
+
+          const cleanJson = response!.text!.replace(/```json/g, '').replace(/```/g, '').trim();
           const data = JSON.parse(cleanJson);
 
           // Update Preview State
@@ -299,7 +316,7 @@ const BodyView: React.FC = () => {
 
       } catch (error) {
           console.error(error);
-          setChatHistory(prev => [...prev, { role: 'ai', text: "Oops, my connection to the spirit realm broke. Check your API Key?" }]);
+          setChatHistory(prev => [...prev, { role: 'ai', text: "Oops, connection to the spirit realm (API) broke. Try again later." }]);
       } finally {
           setIsGenerating(false);
       }

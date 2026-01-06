@@ -33,6 +33,10 @@ const SparkleIcon = ({ className }: { className?: string }) => (
     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L12 3Z"/><path d="M5 3v4"/><path d="M9 3v4"/><path d="M3 5h4"/><path d="M3 9h4"/></svg>
 );
 
+const ClockIcon = ({ className }: { className?: string }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+);
+
 // --- TYPES ---
 interface Food {
   id: string;
@@ -72,6 +76,11 @@ const STORAGE_KEYS = {
     WEIGHT_HISTORY: 'snatched_weight_history',
     GOALS: 'snatched_goals'
 };
+
+const MEAL_TYPES = ['Breakfast', 'Lunch', 'Dinner', 'Snack'];
+
+// FALLBACK MODELS LIST
+const MODELS = ['gemini-3-pro-preview', 'gemini-2.0-flash', 'gemini-1.5-flash'];
 
 // --- HELPERS ---
 const formatDateKey = (date: Date): string => {
@@ -173,9 +182,11 @@ const HistoryView: React.FC = () => {
   const [weightHistory, setWeightHistory] = useState<WeightLog[]>([]);
   const [calorieGoal, setCalorieGoal] = useState(1300);
   
-  // Missed Day Estimate State
-  const [isAddingEstimate, setIsAddingEstimate] = useState(false);
-  const [estimateCals, setEstimateCals] = useState('');
+  // Missed Day Estimate State (New Logic)
+  const [isAddingMissedLog, setIsAddingMissedLog] = useState(false);
+  const [missedMealType, setMissedMealType] = useState('Breakfast');
+  const [missedName, setMissedName] = useState('');
+  const [missedCalories, setMissedCalories] = useState('');
 
   // Weight Logging State
   const [currentWeightInput, setCurrentWeightInput] = useState('');
@@ -261,28 +272,32 @@ const HistoryView: React.FC = () => {
       });
   };
 
-  const handleAddEstimate = () => {
-      if (!estimateCals) return;
-      const cals = parseInt(estimateCals);
+  const handleAddMissedLog = () => {
+      if (!missedCalories) return;
+      const cals = parseInt(missedCalories);
       if (isNaN(cals)) return;
 
-      const estimateFood: Food = {
-          id: `estimate-${Date.now()}`,
-          name: 'Missed Day Estimate ✨',
+      const newFood: Food = {
+          id: `missed-${Date.now()}`,
+          name: missedName || `Missed ${missedMealType}`,
           calories: cals,
-          protein: 0,
+          protein: 0, 
           carbs: 0,
           fats: 0,
-          fiber: 0
+          fiber: 0,
+          mealType: missedMealType
       };
 
-      const newLogs = [...dailyLogs, estimateFood];
+      const newLogs = [...dailyLogs, newFood];
       updateHistory({
           ...history,
           [currentKey]: newLogs
       });
-      setIsAddingEstimate(false);
-      setEstimateCals('');
+      
+      setIsAddingMissedLog(false);
+      setMissedCalories('');
+      setMissedName('');
+      setMissedMealType('Breakfast');
   };
 
   const handleSaveWeight = () => {
@@ -339,12 +354,25 @@ const HistoryView: React.FC = () => {
             }
           `;
 
-          const response = await ai.models.generateContent({
-              model: 'gemini-3-pro-preview',
-              contents: [{ role: 'user', parts: [{ text: prompt }] }]
-          });
+          let response = null;
+          let lastError = null;
 
-          const cleanJson = response.text!.replace(/```json/g, '').replace(/```/g, '').trim();
+          // --- FALLBACK LOGIC ---
+          for (const modelName of MODELS) {
+              try {
+                  response = await ai.models.generateContent({
+                      model: modelName,
+                      contents: [{ role: 'user', parts: [{ text: prompt }] }]
+                  });
+                  if(response) break;
+              } catch (err) {
+                  console.warn(`Model ${modelName} failed in Prediction:`, err);
+                  lastError = err;
+              }
+          }
+          if (!response && lastError) throw lastError;
+
+          const cleanJson = response!.text!.replace(/```json/g, '').replace(/```/g, '').trim();
           const result = JSON.parse(cleanJson);
 
           // Combine Past (Last 5 points) + Predicted
@@ -358,7 +386,7 @@ const HistoryView: React.FC = () => {
 
       } catch (error) {
           console.error("Prediction failed", error);
-          setPredictionSummary("Could not connect to the future. Check your API Key settings.");
+          setPredictionSummary("Could not connect to the future (Quota Limit). Check Settings.");
       } finally {
           setIsPredicting(false);
       }
@@ -468,6 +496,73 @@ const HistoryView: React.FC = () => {
          .animate-slide-up { animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
        `}</style>
 
+        {/* --- LOG MISSED MEAL MODAL --- */}
+        {isAddingMissedLog && (
+            <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/30 backdrop-blur-md p-4 animate-fade-in">
+                <div className="bg-white rounded-[24px] shadow-2xl w-full max-w-sm p-6 animate-modal-in">
+                    <div className="flex justify-between items-center mb-6">
+                        <div className="flex items-center gap-2">
+                            <div className="p-2 bg-pink-50 rounded-full text-accentPink">
+                                <ClockIcon className="w-5 h-5" />
+                            </div>
+                            <h3 className="font-serif font-bold text-xl text-slate-800">Forgot something?</h3>
+                        </div>
+                        <button onClick={() => setIsAddingMissedLog(false)} className="text-slate-400 hover:text-slate-600"><Icons.Plus className="w-6 h-6 rotate-45" /></button>
+                    </div>
+
+                    <div className="space-y-4">
+                        <div>
+                            <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-2">Which meal was it?</label>
+                            <div className="flex flex-wrap gap-2">
+                                {MEAL_TYPES.map(type => (
+                                    <button 
+                                        key={type}
+                                        onClick={() => setMissedMealType(type)}
+                                        className={`px-3 py-2 rounded-xl text-xs font-bold transition-all ${missedMealType === type ? 'bg-accentPink text-white shadow-md' : 'bg-slate-50 text-slate-500 hover:bg-slate-100'}`}
+                                    >
+                                        {type}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        <div>
+                            <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-2">What did you have?</label>
+                            <input 
+                                type="text" 
+                                placeholder="e.g. Avocado Toast (Optional)" 
+                                value={missedName} 
+                                onChange={(e) => setMissedName(e.target.value)} 
+                                className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-sm font-medium focus:ring-2 focus:ring-pink-100 outline-none"
+                            />
+                        </div>
+
+                        <div>
+                            <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-2">Calorie Estimate</label>
+                            <div className="relative">
+                                <input 
+                                    type="number" 
+                                    placeholder="0" 
+                                    value={missedCalories} 
+                                    onChange={(e) => setMissedCalories(e.target.value)} 
+                                    className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-lg font-bold text-slate-800 focus:ring-2 focus:ring-pink-100 outline-none"
+                                />
+                                <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">kcal</span>
+                            </div>
+                        </div>
+
+                        <button 
+                            onClick={handleAddMissedLog}
+                            disabled={!missedCalories}
+                            className="w-full py-3.5 bg-slate-900 text-white rounded-xl font-bold shadow-lg hover:bg-slate-800 transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed mt-2"
+                        >
+                            Log Missed Meal
+                        </button>
+                    </div>
+                </div>
+            </div>
+        )}
+
         {/* --- AI PREDICTION MODAL --- */}
         {isPredictionOpen && (
             <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/30 backdrop-blur-md p-4 animate-fade-in">
@@ -549,23 +644,23 @@ const HistoryView: React.FC = () => {
                     
                     {/* 1. NUTRITION LOGS (Scrollable) */}
                     <div className="md:col-span-2 h-full">
-                        <Card title="Daily Logs" className="h-full flex flex-col !p-5 overflow-hidden">
+                        <Card 
+                            title="Daily Logs" 
+                            className="h-full flex flex-col !p-5 overflow-hidden"
+                            action={
+                                <button 
+                                    onClick={() => setIsAddingMissedLog(true)} 
+                                    className="p-2 bg-slate-50 hover:bg-pink-50 text-slate-400 hover:text-accentPink rounded-xl transition-all"
+                                    title="Log missed meal"
+                                >
+                                    <Icons.Plus className="w-4 h-4" />
+                                </button>
+                            }
+                        >
                             {dailyLogs.length === 0 ? (
                                 <div className="flex flex-col items-center justify-center flex-1 text-center h-full">
                                     <p className="text-slate-400 italic text-xs mb-3">No records found for this day.</p>
-                                    {!isToday(currentDate) && (
-                                        <div className="w-full max-w-xs">
-                                            {!isAddingEstimate ? (
-                                                <button onClick={() => setIsAddingEstimate(true)} className="px-3 py-1.5 bg-pink-50 text-accentPink text-[10px] font-bold rounded-lg hover:bg-pink-100 transition-colors">✨ Add Estimate</button>
-                                            ) : (
-                                                <div className="flex items-center gap-2 animate-fade-in bg-slate-50 p-1.5 rounded-xl">
-                                                    <input type="number" placeholder="Kcal?" value={estimateCals} onChange={(e) => setEstimateCals(e.target.value)} className="flex-1 px-2 py-1.5 text-xs border border-slate-200 rounded-lg focus:outline-none focus:border-accentPink" />
-                                                    <button onClick={handleAddEstimate} className="px-2 py-1.5 bg-accentPink text-white text-[10px] font-bold rounded-lg">Add</button>
-                                                    <button onClick={() => setIsAddingEstimate(false)} className="text-slate-400 p-1"><Icons.Plus className="w-3 h-3 rotate-45" /></button>
-                                                </div>
-                                            )}
-                                        </div>
-                                    )}
+                                    <button onClick={() => setIsAddingMissedLog(true)} className="px-3 py-1.5 bg-pink-50 text-accentPink text-[10px] font-bold rounded-lg hover:bg-pink-100 transition-colors">✨ Add Missed Meal</button>
                                 </div>
                             ) : (
                                 <div className="space-y-2 overflow-y-auto custom-scrollbar flex-1 pr-1">

@@ -4,6 +4,9 @@ import { Icons } from './Icons';
 import { GoogleGenAI } from "@google/genai";
 import { Medication, SkincareItem } from '../types';
 
+// FALLBACK MODELS LIST
+const MODELS = ['gemini-3-pro-preview', 'gemini-2.0-flash', 'gemini-1.5-flash'];
+
 // --- AI MODAL COMPONENT ---
 const AiResponseModal = ({ query, response, onClose, isLoading }: { query: string, response: string, onClose: () => void, isLoading: boolean }) => (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 backdrop-blur-md p-4 animate-fade-in">
@@ -250,7 +253,6 @@ const Header: React.FC = () => {
               }
 
               const ai = new GoogleGenAI({ apiKey });
-              const model = 'gemini-3-pro-preview';
               
               const prompt = `
                 You are a sophisticated, "Coquette" aesthetic fitness, health, and beauty expert. 
@@ -261,16 +263,31 @@ const Header: React.FC = () => {
                 Provide a concise, helpful, and scientifically accurate answer (max 150 words). 
                 Use an occasional emoji (🦢, 🎀, ✨) but keep it readable.
               `;
-
-              const result = await ai.models.generateContent({
-                  model: model,
-                  contents: [{ role: 'user', parts: [{ text: prompt }] }]
-              });
               
-              setAiResponse(result.text || "The stars are silent on this matter. Please try again.");
+              let result = null;
+              let lastError = null;
+
+              // --- FALLBACK LOGIC ---
+              for (const modelName of MODELS) {
+                  try {
+                      result = await ai.models.generateContent({
+                          model: modelName,
+                          contents: [{ role: 'user', parts: [{ text: prompt }] }]
+                      });
+                      if(result) break; // Success, exit loop
+                  } catch (err) {
+                      console.warn(`Model ${modelName} failed in Oracle:`, err);
+                      lastError = err;
+                      // Continue to next model
+                  }
+              }
+              
+              if (!result && lastError) throw lastError;
+
+              setAiResponse(result?.text || "The stars are silent on this matter. Please try again.");
           } catch (error) {
               console.error("AI Error:", error);
-              setAiResponse("My connection to the spirit realm was interrupted. Please check your API Key in Settings.");
+              setAiResponse("My connection to the spirit realm was interrupted (Quota Limit). Please try again later.");
           } finally {
               setIsAiLoading(false);
           }
